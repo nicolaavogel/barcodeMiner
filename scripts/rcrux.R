@@ -35,4 +35,3 @@ blast_seeds(seeds_output_path,
             accession_taxa_sql_path,
             output_directory_path,
             metabarcode_name)    
-
