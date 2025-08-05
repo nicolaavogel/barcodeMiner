@@ -11,7 +11,7 @@ Sys.setenv(PATH = paste(old_path, "ncbi-blast-2.10.1+/bin/", sep = ":"))
 
 forward_primer_seq = "GGGCAATCCTGAGCCAA"
 
-reverse_primer_seq =  "TTTGAGTCTCTGCACCTATC"
+reverse_primer_seq =  "CCATTGAGTCTCTGCACCTATC"
 
 output_directory_path <- "output" # path to desired output directory
 
