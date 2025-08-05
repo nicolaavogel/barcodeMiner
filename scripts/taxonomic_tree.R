@@ -91,21 +91,23 @@ for (i in seq_along(accessions)) {
   print(lineage)
   annotated <- rbind(annotated, data.frame(
     accession = acc,
-    species = if (!is.null(lineage[["species"]])) lineage[["species"]] else NA,
-    genus   = if (!is.null(lineage[["genus"]])) lineage[["genus"]] else NA,
-    family  = if (!is.null(lineage[["family"]])) lineage[["family"]] else NA,
+    species   = if (!is.null(lineage[["species"]])) lineage[["species"]] else NA,
+    genus     = if (!is.null(lineage[["genus"]])) lineage[["genus"]] else NA,
+    family    = if (!is.null(lineage[["family"]])) lineage[["family"]] else NA,
+    order     = if (!is.null(lineage[["order"]])) lineage[["order"]] else NA,
+    class     = if (!is.null(lineage[["class"]])) lineage[["class"]] else NA,
+    phylum    = if (!is.null(lineage[["phylum"]])) lineage[["phylum"]] else NA,
     stringsAsFactors = FALSE
   ))
 }
-
 
 annotated$source <- NA
 
 annotated$source[annotated$accession %in% full_acc] <- "full"
 annotated$source[annotated$accession %in% trnL_acc & annotated$accession %in% full_acc] <- "full+trnL"
 annotated$source[annotated$accession %in% barcode_acc & annotated$accession %in% full_acc] <- "full+barcode"
-annotated$source[annotated$accession %in% full_acc & 
-                   annotated$accession %in% trnL_acc & 
+annotated$source[annotated$accession %in% full_acc &
+                   annotated$accession %in% trnL_acc &
                    annotated$accession %in% barcode_acc] <- "all"
 
 # Fill in remaining:
@@ -115,8 +117,8 @@ annotated <- annotated %>%
 # Select taxids for which you want to build the tree (only those from your annotations)
 taxid_set <- unique(annotated$taxid)
 
-write.csv(annotated, "annotated.tsv")
-annotated <- read.csv("annotated.tsv", sep = ",", header =T)
+#write.csv(annotated, "new_full_annotated_save.tsv")
+annotated <- read.csv("new_full_annotated_save.tsv", sep = ",", header =T)
 # Create edge list tracing up to root
 get_path_to_root <- function(taxid, nodes_df) {
   path <- c()
@@ -288,3 +290,94 @@ print(full_only_genera)
 
 ####################################################################
 
+full_lin <- bind_rows(family_lineages_named) %>%
+  filter(rank %in% c("phylum", "order", "class", "family")) %>%
+  select(taxid, rank, name, family) %>%
+  rename(family_name = family) %>%  # rename to avoid conflict
+  distinct() %>%
+  pivot_wider(names_from = rank, values_from = name) %>%
+  relocate(taxid, phylum, family, family_name)
+
+# Join with all_families_df to get the source column for each family
+full_lin <- full_lin %>%
+  left_join(all_families_df, by = "family")
+full_lin <- full_lin %>%
+  left_join(family_reference_counts, by = "family")
+
+full_lin_filtered <- full_lin |>
+  filter(phylum == "Streptophyta")
+
+ggplot(full_lin_filtered, aes(x = class, y = family, color = source, size = n_references)) +
+  geom_point(alpha = 0.8) +
+  scale_size_continuous(range = c(2, 10)) +  # Adjust dot size range as needed
+  theme_bw(base_size = 15) +
+  labs(
+    color = "Database",
+    size = "Number of References",
+    x = "Class",
+    y = "Family"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave("Family_overview_streptophyta_class.png", height = 23, width = 17)
+
+
+################################################################################
+#### new visuals 
+# First gather the data by taxonomic rank and source
+df_long <- annotated |>
+  pivot_longer(cols = c(family, order, class, phylum), names_to = "rank", values_to = "rank_name")
+
+# Count combinations
+rank_source_summary <- df_long |>
+  group_by(rank, rank_name, source) |>
+  summarise(n = n(), .groups = "drop")
+
+# Plot: For each rank, how often each source appears
+ggplot(rank_source_summary, aes(x = reorder(rank_name, -n), y = n, fill = source)) +
+  geom_bar(stat = "identity", position = "stack") +
+  scale_y_log10() +
+  facet_wrap(~rank, scales = "free_x", ncol = 1) +
+  theme_bw(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1)) +
+  labs(x = "Taxon Name", y = "Count", fill = "Source Type",
+       title = "Distribution of Source Types Across Taxonomic Ranks")
+ggsave("DB_distribution.png", height = 10, width = 20)
+
+####
+# Load required libraries
+library(tidyverse)
+library(pheatmap)
+library(RColorBrewer)
+
+# Your data: assuming it's already in a dataframe called `annotated`
+# Step 1: Convert taxonomic levels to numeric features for clustering
+taxonomy_levels <- c("phylum", "class", "order", "family", "genus", "species")
+
+# Create a numeric matrix based on taxonomy (each column = one-hot encoding of taxonomic label)
+taxonomy_matrix <- annotated %>%
+  select(all_of(taxonomy_levels)) %>%
+  mutate(across(everything(), as.factor)) %>%
+  model.matrix(~ . - 1, data = .)  # one-hot encoding
+
+# Step 2: Generate row annotation for source
+# Assign each source a color
+source_colors <- RColorBrewer::brewer.pal(length(unique(annotated$source)), "Set3")
+names(source_colors) <- unique(annotated$source)
+
+annotation_row <- data.frame(source = annotated$source)
+rownames(annotation_row) <- annotated$accession
+ann_colors <- list(source = source_colors)
+
+# Step 3: Create heatmap
+pheatmap(
+  mat = taxonomy_matrix,
+  cluster_rows = TRUE,
+  cluster_cols = FALSE,
+  annotation_row = annotation_row,
+  annotation_colors = ann_colors,
+  show_rownames = FALSE,
+  show_colnames = FALSE,
+  fontsize = 10,
+  main = "Phylogenetic Clustering by Taxonomy\nColor-coded by Source"
+)
