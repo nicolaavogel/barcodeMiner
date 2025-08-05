@@ -1,4 +1,5 @@
-setwd("/Users/bfj994/Documents/barcodeMiner/DA_res/")
+setwd("/Users/bfj994/Documents/barcodeMiner/results/")
+
 library(data.table)
 library(ggplot2)
 library(dplyr)
@@ -6,7 +7,7 @@ library(stringr)
 library(tibble)
 library(purrr)
 
-dir_path <- "/Users/bfj994/Documents/barcodeMiner/DA_res/"
+dir_path <- "/Users/bfj994/Documents/barcodeMiner/results/"
 lca_files <- list.files(path = dir_path, pattern = "\\.lca\\.gz$", full.names = TRUE)
 # Read and combine all files with an extra column indicating the base filename
 lca_data <- rbindlist(lapply(lca_files, function(file) {
@@ -114,7 +115,7 @@ plots_by_coverage <- rank_summary |>
 # Save plots
 walk2(plots_by_coverage, seq_along(plots_by_coverage), function(plot, i) {
   ggsave(
-    filename = paste0("DA_rank_assignments_", i, ".png"),
+    filename = paste0("BN_rank_assignments_", i, ".png"),
     plot = plot,
     width = 12, height = 8, dpi = 300
   )
